@@ -6,7 +6,7 @@ find_package(Qt5 COMPONENTS Core Gui Widgets REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(MPV REQUIRED mpv)
 
-add_executable(MusicPlayer main.cpp player.cpp player.hpp)
+add_executable(MusicPlayer main.cpp player.cpp player.hpp qmpv.hpp qmpv.cpp)
 
 target_include_directories(
   MusicPlayer
