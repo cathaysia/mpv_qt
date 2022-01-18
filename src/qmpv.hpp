@@ -22,6 +22,12 @@ public:
     double duration() const;
     // 添加媒体到播放列表末尾
     void addMedia(QString const& url);
+    // 更改当前播放的媒体
+    void setCurrentIndex(int playlistPosition);
+    // 可能为 -1
+    int64_t     currentIndex() const;
+    QStringList playlists() const;
+    bool seekable();
 
 signals:
     void onMpvEventChanged();

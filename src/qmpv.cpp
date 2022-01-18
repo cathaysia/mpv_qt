@@ -64,11 +64,15 @@ void MpvPlayer::handleMpvEvent() {
             // 属性不可达，可能音频已经停止
             if(pros->format == MPV_FORMAT_NONE) emit this->positioinChanged(0);
         }
+        // 播放列表发生了变化
+        if(strcmp(pros->name, "playlist-count") == 0)
+            auto list = this->playlists();
     }
 }
 
 void MpvPlayer::initMpvProps() {
     mpv_observe_property(mpv_, 0, "time-pos", MPV_FORMAT_DOUBLE);
+    mpv_observe_property(mpv_, 0, "playlist-count", MPV_FORMAT_INT64);
 }
 
 void MpvPlayer::setPosition(double position) {
@@ -85,4 +89,36 @@ void MpvPlayer::addMedia(const QString& url) {
     const char* args[] = { "loadfile", url.toUtf8().data(), "append-play",
                            nullptr };
     mpv_command_async(mpv_, 0, args);
+}
+
+void MpvPlayer::setCurrentIndex(int playlistPosition) {
+    mpv_set_property(mpv_, "playlist-pos", MPV_FORMAT_INT64, &playlistPosition);
+    // INFO: playlist-pos 的行为未来可能会更改，故此有下述代码
+    const char* args[] = { "playlist-play-index", "current", nullptr };
+    mpv_command_async(mpv_, 0, args);
+}
+
+int64_t MpvPlayer::currentIndex() const {
+    int64_t data;
+    mpv_get_property(mpv_, "playlist-playing-pos", MPV_FORMAT_INT64, &data);
+    return data;
+}
+
+QStringList MpvPlayer::playlists() const {
+    QStringList list;
+    int64_t     size = 0;
+    mpv_get_property(mpv_, "playlist/count", MPV_FORMAT_INT64, &size);
+    for(int i = 0; i < size; ++i) {
+        char*   title = nullptr;
+        QString pram  = QString("playlist/%1/filename").arg(QString::number(i));
+        mpv_get_property(mpv_, pram.toUtf8().data(), MPV_FORMAT_STRING, &title);
+        list << title;
+    }
+    return list;
+}
+
+bool MpvPlayer::seekable() {
+    int64_t data;
+    mpv_get_property(mpv_, "seekable", MPV_FORMAT_INT64, &data);
+    return data;
 }
