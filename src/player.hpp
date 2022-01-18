@@ -1,6 +1,8 @@
 #pragma once
 
+#include <QHBoxLayout>
 #include <QMainWindow>
+#include <QProgressBar>
 
 #include "qmpv.hpp"
 
@@ -11,6 +13,8 @@ public:
     ~MainWindow();
 
 private:
-    QWidget*   container_;
-    MpvPlayer* player_;
+    QHBoxLayout*  layout;
+    QProgressBar* bar;
+    QWidget*      container_;
+    MpvPlayer*    player_;
 };

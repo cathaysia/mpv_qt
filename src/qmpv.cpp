@@ -1,7 +1,13 @@
 #include "qmpv.hpp"
 
+#include <QDebug>
+
 #include <stdexcept>
-MpvPlayer::MpvPlayer(QWidget* container, QObject* parent) : QObject(parent), container_(container), mpv_(mpv_create()) {
+MpvPlayer::MpvPlayer(QWidget* container, QObject* parent)
+    : QObject(parent)
+    , timer_(new QTimer)
+    , container_(container)
+    , mpv_(mpv_create()) {
     if(!mpv_) throw std::runtime_error("创建 mpv 实例失败");
 
     container_->setAttribute(Qt::WA_DontCreateNativeAncestors);
@@ -11,8 +17,13 @@ MpvPlayer::MpvPlayer(QWidget* container, QObject* parent) : QObject(parent), con
     int64_t wid = container_->winId();
     mpv_set_option(mpv_, "wid", MPV_FORMAT_INT64, &wid);
 
+    initMpvProps();
     // 控制 mpv 事件
-    connect(this, &MpvPlayer::onMpvEventChanged, this, &MpvPlayer::handleMpvEvent, Qt::QueuedConnection);
+    connect(this,
+            &MpvPlayer::onMpvEventChanged,
+            this,
+            &MpvPlayer::handleMpvEvent,
+            Qt::QueuedConnection);
     mpv_set_wakeup_callback(
         mpv_,
         [](void* obj) {    // 这个函数不能执行 mpv_wait_event
@@ -20,6 +31,10 @@ MpvPlayer::MpvPlayer(QWidget* container, QObject* parent) : QObject(parent), con
             emit  player->onMpvEventChanged();
         },
         this);
+    // 定期处理 mpv 事件
+    timer_->setInterval(500);
+    connect(timer_, &QTimer::timeout, this, &MpvPlayer::handleMpvEvent);
+    timer_->start();
 
     if(mpv_initialize(mpv_) < 0) throw std::runtime_error("mpv 初始化失败");
 }
@@ -40,13 +55,34 @@ void MpvPlayer::handleMpvEvent() {
         mpv_terminate_destroy(mpv_);
         mpv_ = nullptr;
     }
+    if(event->event_id == MPV_EVENT_PROPERTY_CHANGE) {
+        auto* pros = static_cast<mpv_event_property*>(event->data);
+        // 播放位置发生了变化
+        if(strcmp(pros->name, "time-pos") == 0) {
+            if(pros->format == MPV_FORMAT_DOUBLE)
+                emit this->positioinChanged(*static_cast<double*>(pros->data));
+            // 属性不可达，可能音频已经停止
+            if(pros->format == MPV_FORMAT_NONE) emit this->positioinChanged(0);
+        }
+    }
 }
 
-void MpvPlayer::setUrl(const QString& url) {
-    this->url_ = url.toUtf8();
+void MpvPlayer::initMpvProps() {
+    mpv_observe_property(mpv_, 0, "time-pos", MPV_FORMAT_DOUBLE);
 }
 
-void MpvPlayer::play() {
-    const char* args[] = { "loadfile", url_.data(), nullptr };
+void MpvPlayer::setPosition(double position) {
+    mpv_set_property(mpv_, "time-pos", MPV_FORMAT_DOUBLE, &position);
+}
+
+double MpvPlayer::duration() const {
+    double data = 0;
+    mpv_get_property(mpv_, "duration", MPV_FORMAT_DOUBLE, &data);
+    return data;
+}
+
+void MpvPlayer::addMedia(const QString& url) {
+    const char* args[] = { "loadfile", url.toUtf8().data(), "append-play",
+                           nullptr };
     mpv_command_async(mpv_, 0, args);
 }
